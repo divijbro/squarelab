@@ -13,6 +13,8 @@ npm run dev
 
 Open the local URL printed by Vite. Create a production build with `npm run build`, or preview it with `npm run preview`.
 
+Run the geometry checks with `npm test`.
+
 ## Deploy to Render
 
 This is a client-side React app with no server, database, or runtime environment variables. Deploy it as a **Render Static Site**. The included `render.yaml` configures the service as a Blueprint:
@@ -26,7 +28,8 @@ To deploy, push this directory to a Git repository, connect the repository in Re
 
 ## Features
 
-- Accurate SVG constructions with live measurements and area ratios.
-- Side-length and construction-progress sliders, reversible scrubbing, and animation controls.
-- Explore, guided, discover, and locally generated challenge modes.
-- Responsive layout, keyboard-operable controls, and reduced-motion support.
+- Accurate, rotatable SVG constructions with draggable resize handles and live area measurements.
+- The Double-Area Machine, Half-Area Mystery, and a synchronized Area Laboratory comparison.
+- Area Vision, a reversible construction timeline, playback, and a staged algebra proof.
+- Locally generated challenges with hints and progress tracking.
+- Responsive layout, keyboard and touch input, and reduced-motion support.

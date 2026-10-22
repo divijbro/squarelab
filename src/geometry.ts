@@ -1,5 +1,4 @@
 export type Construction = 'diagonal' | 'midpoints'
-
 export type Point = { x: number; y: number }
 
 export type SquareModel = {
@@ -7,29 +6,51 @@ export type SquareModel = {
   constructed: [Point, Point, Point, Point]
   midpoints: [Point, Point, Point, Point]
   corners: [Point[], Point[], Point[], Point[]]
+  center: Point
+  draggablePoint: Point
   sidePixels: number
   originalArea: number
   constructedArea: number
   ratio: number
   constructedSide: number
+  diagonal: number
 }
 
-const midpoint = (p: Point, q: Point): Point => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })
+const add = (a: Point, b: Point): Point => ({ x: a.x + b.x, y: a.y + b.y })
+const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+const rotate = (point: Point, angle: number): Point => {
+  const radians = (angle * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  return { x: point.x * cos - point.y * sin, y: point.x * sin + point.y * cos }
+}
 
-export function createSquareModel(side: number, construction: Construction): SquareModel {
-  const sidePixels = side * 28
-  const half = sidePixels / 2
-  // Center the complete diagonal-square construction in the viewBox. Because
-  // its side is an interior diagonal, the new square shares one half of the
-  // original square; the drawing keeps that overlap mathematically honest.
-  const centerX = construction === 'diagonal' ? 400 - half : 400
-  const centerY = construction === 'diagonal' ? 310 + half : 310
-  const outer: [Point, Point, Point, Point] = [
-    { x: centerX - half, y: centerY - half },
-    { x: centerX + half, y: centerY - half },
-    { x: centerX + half, y: centerY + half },
-    { x: centerX - half, y: centerY + half },
-  ]
+export function polygonArea(points: Point[]): number {
+  return Math.abs(points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length]!
+    return sum + point.x * next.y - next.x * point.y
+  }, 0)) / 2
+}
+
+/** Build both constructions from exact square vectors, then apply one rigid rotation. */
+export function createSquareModel(side: number, construction: Construction, angle = 0, scaleFactor = 20): SquareModel {
+  const sidePixels = side * scaleFactor
+  const center = { x: 400, y: 310 }
+  const origin = construction === 'diagonal'
+    ? add(center, rotate({ x: sidePixels, y: -sidePixels }, angle))
+    : center
+  const at = (vector: Point) => add(origin, rotate(vector, angle))
+  let outer: [Point, Point, Point, Point]
+
+  if (construction === 'diagonal') {
+    // B is the shared anchor. AC is the original square's diagonal and the
+    // first side of the attached square; rotating AC by 90° supplies its next side.
+    outer = [at({ x: -sidePixels, y: 0 }), origin, at({ x: 0, y: sidePixels }), at({ x: -sidePixels, y: sidePixels })]
+  } else {
+    const half = sidePixels / 2
+    outer = [at({ x: -half, y: -half }), at({ x: half, y: -half }), at({ x: half, y: half }), at({ x: -half, y: half })]
+  }
+
   const [a, b, c, d] = outer
   const midpoints: [Point, Point, Point, Point] = [midpoint(a, b), midpoint(b, c), midpoint(c, d), midpoint(d, a)]
   const corners: [Point[], Point[], Point[], Point[]] = [
@@ -38,45 +59,39 @@ export function createSquareModel(side: number, construction: Construction): Squ
     [midpoints[1], c, midpoints[2]],
     [midpoints[2], d, midpoints[3]],
   ]
-
-  if (construction === 'midpoints') {
-    return {
-      outer,
-      constructed: midpoints,
-      midpoints,
-      corners,
-      sidePixels,
-      originalArea: side * side,
-      constructedArea: (side * side) / 2,
-      ratio: 0.5,
-      constructedSide: side / Math.sqrt(2),
-    }
+  const squareCenter = {
+    x: outer.reduce((sum, point) => sum + point.x, 0) / 4,
+    y: outer.reduce((sum, point) => sum + point.y, 0) / 4,
   }
+  const constructed: [Point, Point, Point, Point] = construction === 'midpoints'
+    ? midpoints
+    : (() => {
+        const offset = rotate({ x: -sidePixels, y: sidePixels }, angle)
+        return [a, c, add(c, offset), add(a, offset)]
+      })()
+  const originalArea = polygonArea(outer) / (scaleFactor * scaleFactor)
+  const constructedArea = polygonArea(constructed) / (scaleFactor * scaleFactor)
+  const constructedSide = Math.hypot(constructed[1].x - constructed[0].x, constructed[1].y - constructed[0].y) / scaleFactor
 
-  // A square on diagonal AC sits on the opposite side of AC from the original.
-  // Rotating AC by 90° gives an exactly equal perpendicular side.
-  const diagonalOffset = { x: sidePixels, y: -sidePixels }
-  const diagonalSquare: [Point, Point, Point, Point] = [
-    a,
-    c,
-    { x: c.x + diagonalOffset.x, y: c.y + diagonalOffset.y },
-    { x: a.x + diagonalOffset.x, y: a.y + diagonalOffset.y },
-  ]
   return {
     outer,
-    constructed: diagonalSquare,
+    constructed,
     midpoints,
     corners,
+    center: squareCenter,
+    draggablePoint: outer[0],
     sidePixels,
-    originalArea: side * side,
-    constructedArea: side * side * 2,
-    ratio: 2,
-    constructedSide: side * Math.SQRT2,
+    originalArea,
+    constructedArea,
+    ratio: constructedArea / originalArea,
+    constructedSide,
+    diagonal: Math.hypot(c.x - a.x, c.y - a.y) / scaleFactor,
   }
 }
 
-export function formatNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
+export function formatNumber(value: number, digits = 2): string {
+  if (Math.abs(value - Math.round(value)) < 1e-9) return String(Math.round(value))
+  return value.toFixed(digits).replace(/\.?0+$/, '')
 }
 
 export function ratioLabel(construction: Construction): string {
