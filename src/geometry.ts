@@ -7,6 +7,7 @@ export type SquareModel = {
   midpoints: [Point, Point, Point, Point]
   corners: [Point[], Point[], Point[], Point[]]
   center: Point
+  dragPivot: Point
   draggablePoint: Point
   sidePixels: number
   originalArea: number
@@ -79,6 +80,7 @@ export function createSquareModel(side: number, construction: Construction, angl
     midpoints,
     corners,
     center: squareCenter,
+    dragPivot: center,
     draggablePoint: outer[0],
     sidePixels,
     originalArea,
@@ -86,6 +88,19 @@ export function createSquareModel(side: number, construction: Construction, angl
     ratio: constructedArea / originalArea,
     constructedSide,
     diagonal: Math.hypot(c.x - a.x, c.y - a.y) / scaleFactor,
+  }
+}
+
+/** Convert a dragged top-left vertex back to side length and rotation around a fixed canvas pivot. */
+export function squareParametersFromHandle(point: Point, pivot: Point, construction: Construction, scaleFactor = 20): { side: number; angle: number } {
+  const dx = point.x - pivot.x
+  const dy = point.y - pivot.y
+  const baseAngle = construction === 'diagonal' ? -90 : -135
+  const sideScale = construction === 'diagonal' ? 1 : Math.SQRT2
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI - baseAngle
+  return {
+    side: Math.hypot(dx, dy) * sideScale / scaleFactor,
+    angle: ((angle + 540) % 360) - 180,
   }
 }
 

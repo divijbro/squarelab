@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createSquareModel, polygonArea } from '../src/geometry.ts'
+import { createSquareModel, polygonArea, squareParametersFromHandle } from '../src/geometry.ts'
 
 const closeTo = (actual, expected, epsilon = 1e-8) => {
   assert.ok(Math.abs(actual - expected) <= epsilon, `expected ${actual} to be within ${epsilon} of ${expected}`)
@@ -62,4 +62,19 @@ test('joining the midpoints gives four equal corner triangles and a square', () 
   })
   closeTo(triangleAreas.reduce((sum, area) => sum + area, 0), model.originalArea / 2)
 })
+
+for (const construction of ['diagonal', 'midpoints']) {
+  for (const angle of [-179, -90, 0, 37, 179]) {
+    test(`${construction} drag mapping stays stable at ${angle}°`, () => {
+      const desiredSide = 8.25
+      const model = createSquareModel(desiredSide, construction, angle)
+      const mapped = squareParametersFromHandle(model.draggablePoint, model.dragPivot, construction)
+      closeTo(mapped.side, desiredSide)
+      closeTo(Math.sin((mapped.angle - angle) * Math.PI / 360), 0)
+
+      const rebuilt = createSquareModel(mapped.side, construction, mapped.angle)
+      closeTo(distance(rebuilt.draggablePoint, model.draggablePoint), 0)
+    })
+  }
+}
 

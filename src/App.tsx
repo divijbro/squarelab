@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Check, ChevronLeft, ChevronRight, Eye, FlaskConical, Grid2X2, Lightbulb, Pause, Play, RotateCcw, RotateCw, Square, Triangle, X } from 'lucide-react'
-import { createSquareModel, formatNumber, type Construction, type Point, type SquareModel } from './geometry'
+import { createSquareModel, formatNumber, squareParametersFromHandle, type Construction, type Point, type SquareModel } from './geometry'
 
 type Activity = 'machine' | 'mystery' | 'lab' | 'challenge'
 const timelineSteps: Record<Construction, string[]> = {
@@ -148,12 +148,9 @@ function App() {
     if (!dragging) return
     const point = pointerPoint(event)
     if (!point) return
-    const dx = point.x - model.center.x
-    const dy = point.y - model.center.y
-    const nextSide = Math.min(10, Math.max(1, Math.hypot(dx, dy) * Math.SQRT2 / CANVAS_SCALE))
-    const nextAngle = Math.atan2(dy, dx) * 180 / Math.PI + 135
-    setSide(nextSide)
-    setAngle(((nextAngle + 540) % 360) - 180)
+    const next = squareParametersFromHandle(point, model.dragPivot, construction, CANVAS_SCALE)
+    setSide(Math.min(10, Math.max(1, next.side)))
+    setAngle(next.angle)
   }
   const beginDrag = (event: ReactPointerEvent<SVGCircleElement>) => {
     event.preventDefault()
@@ -207,9 +204,6 @@ function App() {
             <button className={`choice ${construction === 'midpoints' ? 'selected' : ''}`} onClick={() => selectConstruction('midpoints')} aria-pressed={construction === 'midpoints'}><span className="choice-symbol midpoint-symbol"><Square size={17} /></span><span><b>Midpoint square</b><small>Area halves</small></span>{construction === 'midpoints' && <Check size={15} />}</button>
           </div>
           <div className="control-group">
-            <div className="control-label range-heading"><label htmlFor="side-control">Original side length</label><strong>{formatNumber(side)} <small>units</small></strong></div>
-            <input id="side-control" className="range" type="range" min="1" max="10" step="0.01" value={side} onChange={(event) => setSide(Number(event.target.value))} style={{ '--fill': `${((side - 1) / 9) * 100}%` } as CSSProperties} />
-            <div className="range-ends"><span>1</span><span>10</span></div>
             <div className="control-label range-heading rotation-heading"><label htmlFor="rotation-control">Rotate construction</label><strong>{Math.round(angle)}°</strong></div>
             <div className="rotation-control"><button aria-label="Rotate counterclockwise" onClick={() => rotateDiagram(-15)}><RotateCcw size={15} /></button><input id="rotation-control" className="range" type="range" min="-180" max="180" step="1" value={Math.round(angle)} onChange={(event) => setAngle(Number(event.target.value))} style={{ '--fill': `${((angle + 180) / 360) * 100}%` } as CSSProperties} /><button aria-label="Rotate clockwise" onClick={() => rotateDiagram(15)}><RotateCw size={15} /></button></div>
           </div>
@@ -230,6 +224,12 @@ function App() {
 
         <section className="canvas-column" aria-label="Geometry workspace">
           <div className="canvas-heading"><div><span className="eyebrow">SQUARELAB / {activity.toUpperCase()}</span><h1>{title}</h1><p>{construction === 'diagonal' ? 'Can a diagonal build a square with exactly twice the area?' : 'What do four side midpoints reveal about area?'}</p></div><button className={`area-vision-button ${areaVision ? 'on' : ''}`} onClick={() => setAreaVision((current) => !current)} aria-pressed={areaVision}><Eye size={15} /> Area Vision</button></div>
+
+          <section className="size-control" aria-label="Adjust square side lengths">
+            <div className="size-readout"><label htmlFor="side-control">Original side length</label><strong>s = {formatNumber(side)} <small>units</small></strong></div>
+            <div className="size-slider-wrap"><input id="side-control" className="range" aria-label="Original square side length" type="range" min="1" max="10" step="0.01" value={side} onChange={(event) => setSide(Number(event.target.value))} style={{ '--fill': `${((side - 1) / 9) * 100}%` } as CSSProperties} /><div className="range-ends"><span>1 unit</span><span>10 units</span></div></div>
+            <div className="derived-length"><span>{construction === 'diagonal' ? 'Diagonal-square side' : 'Midpoint-square side'}</span><strong>{formatNumber(model.constructedSide)} <small>units</small></strong><i>{construction === 'diagonal' ? 's√2' : 's / √2'}</i></div>
+          </section>
 
           <div className={`canvas-frame ${showGrid ? 'grid-visible' : ''}`}>
             <div className="canvas-status"><span><i className="live-dot" /> LIVE GEOMETRY</span><span>UNITS · {formatNumber(side)} × {formatNumber(side)}</span></div>
