@@ -1,8 +1,8 @@
 import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Check, ChevronLeft, ChevronRight, Eye, FlaskConical, Grid2X2, Lightbulb, Pause, Play, RotateCcw, RotateCw, Square, Triangle, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Eye, Grid2X2, Pause, Play, RotateCcw, RotateCw, Square, Triangle } from 'lucide-react'
 import { createSquareModel, formatNumber, squareParametersFromHandle, type Construction, type Point, type SquareModel } from './geometry'
 
-type Activity = 'machine' | 'mystery' | 'lab' | 'challenge'
+type Activity = 'machine' | 'mystery'
 const timelineSteps: Record<Construction, string[]> = {
   diagonal: ['Original square', 'Diagonal appears', 'Measure the diagonal', 'Build the new square', 'Compare regions', 'Reveal the rule'],
   midpoints: ['Original square', 'Mark midpoints', 'Connect the points', 'Inner square forms', 'Highlight corner pieces', 'Reveal the rule'],
@@ -24,17 +24,8 @@ const proof: Record<Construction, { title: string; formula: string; focus: strin
     { title: 'Conclusion', formula: 'A₂ / A₁ = 1/2', focus: 'The midpoint square has exactly half the area.' },
   ],
 }
-const challenges = [
-  { prompt: 'An original square has area 25 cm². What is the area of its diagonal square?', answers: ['50'], unit: 'cm²', hint: 'The diagonal square has twice the original area.' },
-  { prompt: 'An original square has area 100 cm². What is the area inside the midpoint square?', answers: ['50'], unit: 'cm²', hint: 'The midpoint square occupies half the original area.' },
-  { prompt: 'Which construction has half the original square’s area?', answers: ['midpoint', 'midpoints', 'half-area mystery'], unit: '', hint: 'Look at the square formed by joining the side midpoints.' },
-  { prompt: 'If the original side changes from 3 to 8 units, what happens to the midpoint area ratio?', answers: ['1/2', '0.5', '0.50'], unit: '', hint: 'The ratio does not depend on the side length.' },
-  { prompt: 'A diagonal square has area 72 cm². What was the original area?', answers: ['36'], unit: 'cm²', hint: 'Divide the diagonal square area by 2.' },
-]
-
 const points = (list: Point[]) => list.map(({ x, y }) => `${x},${y}`).join(' ')
 const average = (list: Point[]): Point => ({ x: list.reduce((sum, p) => sum + p.x, 0) / list.length, y: list.reduce((sum, p) => sum + p.y, 0) / list.length })
-const normalizedAnswer = (value: string) => value.trim().toLowerCase().replaceAll(',', '.').replaceAll(' ', '')
 const CANVAS_SCALE = 27.5
 const SIDE_LIMITS = { min: 1, max: 10 }
 
@@ -61,14 +52,8 @@ function App() {
   const [showLabels, setShowLabels] = useState(true)
   const [showMidpoints, setShowMidpoints] = useState(true)
   const [showFormula, setShowFormula] = useState(true)
-  const [compare, setCompare] = useState(false)
   const [ruleTested, setRuleTested] = useState(false)
   const [proofStep, setProofStep] = useState(0)
-  const [challengeIndex, setChallengeIndex] = useState(0)
-  const [answer, setAnswer] = useState('')
-  const [checked, setChecked] = useState(false)
-  const [hint, setHint] = useState(false)
-  const [completed, setCompleted] = useState<number[]>([])
   const [lockedViewBox, setLockedViewBox] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const dragSessionRef = useRef<DragSession | null>(null)
@@ -77,10 +62,7 @@ function App() {
   const progressRef = useRef(progress)
   const model = useMemo(() => createSquareModel(side, construction, angle, CANVAS_SCALE), [side, construction, angle])
   const activeProof = proof[construction]
-  const challenge = challenges[challengeIndex]!
-  const isCorrect = challenge.answers.includes(normalizedAnswer(answer))
-  const isSplit = activity === 'lab' && compare
-  const title = activity === 'machine' ? 'The Double-Area Machine' : activity === 'mystery' ? 'The Half-Area Mystery' : activity === 'lab' ? 'Area Laboratory' : 'Can you discover the rule?'
+  const title = activity === 'machine' ? 'The Double-Area Machine' : 'The Half-Area Mystery'
   const revealFraction = Math.max(0, Math.min(1, (progress - 45) / 55))
   const mainViewBox = construction === 'diagonal'
     ? `${(model.center.x - 400) * (1 - revealFraction)} ${(model.center.y - 310) * (1 - revealFraction)} 800 620`
@@ -239,17 +221,6 @@ function App() {
     if (svgRef.current?.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId)
   }
 
-  const checkChallenge = () => {
-    if (!answer.trim()) return
-    setChecked(true)
-    if (isCorrect && !completed.includes(challengeIndex)) setCompleted((current) => [...current, challengeIndex])
-  }
-  const nextChallenge = () => {
-    setChallengeIndex((current) => (current + 1) % challenges.length)
-    setAnswer('')
-    setChecked(false)
-    setHint(false)
-  }
   const revealSecret = () => {
     setAreaVision(true)
     setPlaying(false)
@@ -267,8 +238,6 @@ function App() {
       <nav className="activity-tabs" aria-label="Activities">
         <ActivityButton active={activity === 'machine'} onClick={() => selectActivity('machine')} icon={<Square size={16} />} label="Double-Area Machine" />
         <ActivityButton active={activity === 'mystery'} onClick={() => selectActivity('mystery')} icon={<Triangle size={16} />} label="Half-Area Mystery" />
-        <ActivityButton active={activity === 'lab'} onClick={() => selectActivity('lab')} icon={<FlaskConical size={16} />} label="Area Laboratory" />
-        <ActivityButton active={activity === 'challenge'} onClick={() => selectActivity('challenge')} icon={<Lightbulb size={16} />} label="Challenge" />
       </nav>
 
       <div className="workspace">
@@ -292,7 +261,6 @@ function App() {
             <Toggle label="Show formulas" checked={showFormula} onChange={setShowFormula} />
             <Toggle label="Area Vision" checked={areaVision} onChange={setAreaVision} />
           </div>
-          {activity === 'lab' && <div className="compare-toggle"><div><b>Compare both</b><small>Synchronized dimensions</small></div><Toggle compact label="Compare both constructions" checked={compare} onChange={setCompare} /></div>}
           {activity === 'machine' && <button className="test-rule-button" onClick={() => setRuleTested((current) => !current)}><Grid2X2 size={16} /> {ruleTested ? 'Hide rule test' : 'Test the Rule'}</button>}
           {activity === 'mystery' && <button className="reveal-button" onClick={revealSecret}><Eye size={16} /> Reveal the Secret</button>}
             <p className="keyboard-hint">On the canvas: drag outward to resize or sideways to rotate. Use ← → to rotate, + / − to resize.</p>
@@ -309,49 +277,35 @@ function App() {
 
           <div className={`canvas-frame ${showGrid ? 'grid-visible' : ''}`}>
             <div className="canvas-status"><span><i className="live-dot" /> LIVE GEOMETRY</span><span>UNITS · {formatNumber(side)} × {formatNumber(side)}</span></div>
-            {isSplit ? (
-              <div className="split-canvas">
-              {(() => {
-                const splitScale = Math.min(CANVAS_SCALE, 175 / side)
-                return <>
-                  <section><div className="split-title"><b>Double area</b><span>Diagonal construction</span></div><ConstructionSVG construction="diagonal" model={createSquareModel(side, 'diagonal', angle, splitScale)} progress={progress} areaVision={areaVision} showLabels={showLabels} showMidpoints={showMidpoints} showAxes={showAxes} showGrid={showGrid} interactive={false} viewBox="200 50 400 520" />{showFormula && <div className="split-formula">s² → 2s² <strong>2×</strong></div>}</section>
-                  <section><div className="split-title"><b>Half area</b><span>Midpoint construction</span></div><ConstructionSVG construction="midpoints" model={createSquareModel(side, 'midpoints', angle, splitScale)} progress={progress} areaVision={areaVision} showLabels={showLabels} showMidpoints={showMidpoints} showAxes={showAxes} showGrid={showGrid} interactive={false} viewBox="200 50 400 520" />{showFormula && <div className="split-formula">s² → s²/2 <strong>½×</strong></div>}</section>
-                </>
-              })()}
-              </div>
-            ) : (
-              <ConstructionSVG
-                ref={svgRef}
-                construction={construction}
-                model={model}
-                progress={progress}
-                areaVision={areaVision}
-                showLabels={showLabels}
-                showMidpoints={showMidpoints}
-                showAxes={showAxes}
-                showGrid={showGrid}
-                interactive={activity !== 'lab' || !compare}
-                viewBox={activeViewBox}
-                onPointerDown={beginDrag}
-                onPointerMove={moveHandle}
-                onPointerUp={endDrag}
-                onKeyDown={(event) => {
-                  if (event.key === 'ArrowLeft') { event.preventDefault(); rotateDiagram(-5) }
-                  if (event.key === 'ArrowRight') { event.preventDefault(); rotateDiagram(5) }
-                  if (event.key === '+' || event.key === '=') { event.preventDefault(); lockViewBox(); setSide((current) => Math.min(10, current + 0.25)) }
-                  if (event.key === '-' || event.key === '_') { event.preventDefault(); lockViewBox(); setSide((current) => Math.max(1, current - 0.25)) }
-                  if (event.key === ' ') { event.preventDefault(); setPlaying((current) => !current) }
-                }}
-              />
-            )}
+            <ConstructionSVG
+              ref={svgRef}
+              construction={construction}
+              model={model}
+              progress={progress}
+              areaVision={areaVision}
+              showLabels={showLabels}
+              showMidpoints={showMidpoints}
+              showAxes={showAxes}
+              showGrid={showGrid}
+              interactive
+              viewBox={activeViewBox}
+              onPointerDown={beginDrag}
+              onPointerMove={moveHandle}
+              onPointerUp={endDrag}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft') { event.preventDefault(); rotateDiagram(-5) }
+                if (event.key === 'ArrowRight') { event.preventDefault(); rotateDiagram(5) }
+                if (event.key === '+' || event.key === '=') { event.preventDefault(); lockViewBox(); setSide((current) => Math.min(10, current + 0.25)) }
+                if (event.key === '-' || event.key === '_') { event.preventDefault(); lockViewBox(); setSide((current) => Math.max(1, current - 0.25)) }
+                if (event.key === ' ') { event.preventDefault(); setPlaying((current) => !current) }
+              }}
+            />
             <div className="canvas-legend"><span><i className="swatch blue" /> Original square</span><span><i className="swatch violet" /> Constructed square</span>{construction === 'midpoints' && <span><i className="swatch amber" /> Corner regions</span>}</div>
           </div>
 
           {areaVision && progress >= 72 && <div className="area-insight"><span className="insight-icon"><Eye size={16} /></span><div><b>{construction === 'diagonal' ? 'Four equal regions, two original areas' : 'Four corner pieces balance the center'}</b><p>{construction === 'diagonal' ? 'Each triangle in the diagonal square is ½s². Two such triangles equal the original square.' : 'The four congruent corner triangles together occupy ½s², matching the inner square.'}</p></div><strong>{construction === 'diagonal' ? '1 : 2' : '1/2'}</strong></div>}
 
           {activity === 'machine' && ruleTested && <div className="rule-table-wrap"><div className="rule-table-title"><b>Test the Rule</b><span>Same ratio at every size</span></div><div className="rule-table">{[1, 2, 4, 7, 10].map((n) => { const item = createSquareModel(n, 'diagonal'); return <div className="rule-row" key={n}><span>s = {n}</span><span>{formatNumber(item.originalArea)} u²</span><span>{formatNumber(item.constructedArea)} u²</span><strong>{formatNumber(item.ratio)}×</strong></div> })}</div></div>}
-
-          {activity === 'challenge' && <ChallengePanel challenge={challenge} index={challengeIndex} total={challenges.length} answer={answer} checked={checked} isCorrect={isCorrect} hint={hint} completed={completed.length} onAnswer={(value) => { setAnswer(value); setChecked(false) }} onCheck={checkChallenge} onHint={() => setHint((current) => !current)} onNext={nextChallenge} />}
 
           <section className="timeline panel" aria-label="Construction timeline">
             <div className="timeline-top"><div><span className="eyebrow">GEOMETRY TIME MACHINE</span><b>Construction timeline</b></div><span className="timeline-percent">{Math.round(progress)}%</span></div>
@@ -384,10 +338,6 @@ function ActivityButton({ active, onClick, icon, label }: { active: boolean; onC
 
 function Toggle({ label, checked, onChange, compact = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; compact?: boolean }) {
   return <label className={`toggle ${compact ? 'compact' : ''}`}><span>{label}</span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><i /></label>
-}
-
-function ChallengePanel({ challenge, index, total, answer, checked, isCorrect, hint, completed, onAnswer, onCheck, onHint, onNext }: { challenge: typeof challenges[number]; index: number; total: number; answer: string; checked: boolean; isCorrect: boolean; hint: boolean; completed: number; onAnswer: (value: string) => void; onCheck: () => void; onHint: () => void; onNext: () => void }) {
-  return <section className="challenge-panel panel"><div className="challenge-top"><div><span className="eyebrow">CHALLENGE {index + 1} / {total}</span><p>{challenge.prompt}</p></div><span className="challenge-progress">{completed}/{total} complete</span></div><form className="challenge-entry" onSubmit={(event) => { event.preventDefault(); onCheck() }}><label className="sr-only" htmlFor="challenge-answer">Your answer</label><input id="challenge-answer" value={answer} onChange={(event) => onAnswer(event.target.value)} placeholder="Type your answer" /><span>{challenge.unit}</span><button type="submit">Check answer</button></form><div className="challenge-bottom">{checked && <span className={`challenge-feedback ${isCorrect ? 'correct' : 'incorrect'}`}>{isCorrect ? <Check size={14} /> : <X size={14} />}{isCorrect ? 'Correct — the ratio is independent of size.' : 'Not quite. Revisit the construction or try a hint.'}</span>}{(!checked || !isCorrect) && <button className="hint-link" onClick={onHint}><Lightbulb size={14} />{hint ? challenge.hint : 'Show a hint'}</button>}<button className="next-challenge" onClick={onNext}>Next challenge <ChevronRight size={14} /></button></div></section>
 }
 
 type DrawingProps = {
