@@ -229,9 +229,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#squarelab" aria-label="SquareLab home"><span className="brand-mark"><Square size={17} /></span><span>square<span>lab</span></span></a>
-        <div className="topbar-context"><span className="live-dot" /> Interactive geometry lab</div>
+      <header className="topbar" style={{ justifyContent: 'flex-end' }}>
         <button className="reset-button" onClick={reset}><RotateCcw size={15} /> Reset</button>
       </header>
 
@@ -267,12 +265,12 @@ function App() {
         </aside>
 
         <section className="canvas-column" aria-label="Geometry workspace">
-          <div className="canvas-heading"><div><span className="eyebrow">SQUARELAB / {activity.toUpperCase()}</span><h1>{title}</h1><p>{construction === 'diagonal' ? 'Can a diagonal build a square with exactly twice the area?' : 'What do four side midpoints reveal about area?'}</p></div><button className={`area-vision-button ${areaVision ? 'on' : ''}`} onClick={() => setAreaVision((current) => !current)} aria-pressed={areaVision}><Eye size={15} /> Area Vision</button></div>
+          <div className="canvas-heading"><div><h1>{title}</h1><p>{construction === 'diagonal' ? 'Can a diagonal build a square with exactly twice the area?' : 'What do four side midpoints reveal about area?'}</p></div><button className={`area-vision-button ${areaVision ? 'on' : ''}`} onClick={() => setAreaVision((current) => !current)} aria-pressed={areaVision}><Eye size={15} /> Area Vision</button></div>
 
           <section className="size-control" aria-label="Adjust square side lengths">
             <div className="size-readout"><label htmlFor="side-control">Original side length</label><strong>s = {formatNumber(side)} <small>units</small></strong></div>
             <div className="size-slider-wrap"><input id="side-control" className="range" aria-label="Original square side length" type="range" min="1" max="10" step="0.01" value={side} onPointerDown={lockViewBox} onKeyDown={lockViewBox} onChange={(event) => setSide(Number(event.target.value))} style={{ '--fill': `${((side - 1) / 9) * 100}%` } as CSSProperties} /><div className="range-ends"><span>1 unit</span><span>10 units</span></div></div>
-            <div className="derived-length"><span>{construction === 'diagonal' ? 'Diagonal-square side' : 'Midpoint-square side'}</span><strong>{formatNumber(model.constructedSide)} <small>units</small></strong><i>{construction === 'diagonal' ? 's√2' : 's / √2'}</i></div>
+            <div className="derived-length"><span>{construction === 'diagonal' ? 'Diagonal-square area' : 'Midpoint-square area'}</span><strong>{formatNumber(model.constructedArea)}</strong><i>{construction === 'diagonal' ? '2s²' : 's² / 2'}</i></div>
           </section>
 
           <div className={`canvas-frame ${showGrid ? 'grid-visible' : ''}`}>
@@ -305,7 +303,7 @@ function App() {
 
           {areaVision && progress >= 72 && <div className="area-insight"><span className="insight-icon"><Eye size={16} /></span><div><b>{construction === 'diagonal' ? 'Four equal regions, two original areas' : 'Four corner pieces balance the center'}</b><p>{construction === 'diagonal' ? 'Each triangle in the diagonal square is ½s². Two such triangles equal the original square.' : 'The four congruent corner triangles together occupy ½s², matching the inner square.'}</p></div><strong>{construction === 'diagonal' ? '1 : 2' : '1/2'}</strong></div>}
 
-          {activity === 'machine' && ruleTested && <div className="rule-table-wrap"><div className="rule-table-title"><b>Test the Rule</b><span>Same ratio at every size</span></div><div className="rule-table">{[1, 2, 4, 7, 10].map((n) => { const item = createSquareModel(n, 'diagonal'); return <div className="rule-row" key={n}><span>s = {n}</span><span>{formatNumber(item.originalArea)} u²</span><span>{formatNumber(item.constructedArea)} u²</span><strong>{formatNumber(item.ratio)}×</strong></div> })}</div></div>}
+          {activity === 'machine' && ruleTested && <div className="rule-table-wrap"><div className="rule-table-title"><b>Test the Rule</b><span>Same ratio at every size</span></div><div className="rule-table">{[1, 2, 4, 7, 10].map((n) => { const item = createSquareModel(n, 'diagonal'); return <div className="rule-row" key={n}><span>s = {n}</span><span>{formatNumber(item.originalArea)} u²</span><span>{formatNumber(item.constructedArea)}</span><strong>{formatNumber(item.ratio)}×</strong></div> })}</div></div>}
 
           <section className="timeline panel" aria-label="Construction timeline">
             <div className="timeline-top"><div><span className="eyebrow">GEOMETRY TIME MACHINE</span><b>Construction timeline</b></div><span className="timeline-percent">{Math.round(progress)}%</span></div>
@@ -319,7 +317,7 @@ function App() {
           <div className="panel-title proof-title"><span className="eyebrow">LIVE MEASUREMENTS</span><h2>Build the Proof</h2><span className="proof-count">{proofStep + 1} / {activeProof.length}</span></div>
           <div className="live-values">
             <div className="value-card"><span>Original area</span><b>{formatNumber(model.originalArea)} <small>units²</small></b><i>s² = {formatNumber(model.originalArea)}</i></div>
-            <div className="value-card result-value"><span>{construction === 'diagonal' ? 'Diagonal square' : 'Midpoint square'}</span><b>{formatNumber(model.constructedArea)} <small>units²</small></b><i>{construction === 'diagonal' ? 'd = ' + formatNumber(model.diagonal) : 'a = ' + formatNumber(model.constructedSide)}</i></div>
+            <div className="value-card result-value"><span>{construction === 'diagonal' ? 'Diagonal square' : 'Midpoint square'}</span><b>{formatNumber(model.constructedArea)}</b><i>{construction === 'diagonal' ? 'A₂ = 2s²' : 'A₂ = s² / 2'}</i></div>
           </div>
           <div className="ratio-meter"><div className="ratio-head"><span>Area ratio <small>A₂ / A₁</small></span><b>{construction === 'diagonal' ? '2 : 1' : '1 : 2'}</b></div><div className="meter-pairs"><span><i className="meter-original" style={{ width: construction === 'diagonal' ? '50%' : '100%' }} /></span><span><i className="meter-result" style={{ width: construction === 'diagonal' ? '100%' : '50%' }} /></span></div><div className="meter-labels"><span>Original</span><span>Constructed</span></div></div>
           {showFormula && <div className="formula-card"><div className="formula-heading"><span className="eyebrow">STEP {proofStep + 1} · {activeProof[proofStep]!.title}</span><span className="formula-symbol">ƒ</span></div><strong>{activeProof[proofStep]!.formula}</strong><p>{activeProof[proofStep]!.focus}</p><div className="proof-progress">{activeProof.map((stage, index) => <button key={stage.title} className={index <= proofStep ? 'done' : ''} onClick={() => jumpToProof(index)} aria-label={`Show proof step ${index + 1}: ${stage.title}`} />)}</div><div className="proof-actions"><button onClick={() => jumpToProof(proofStep - 1)} disabled={proofStep === 0}><ChevronLeft size={14} /> Previous</button><button className="proof-next" onClick={() => jumpToProof(proofStep + 1)} disabled={proofStep === activeProof.length - 1}>Next step <ChevronRight size={14} /></button></div></div>}
@@ -327,7 +325,6 @@ function App() {
           <div className="theorem-note"><span><Check size={14} /></span><p>{construction === 'diagonal' ? 'The ratio stays 2 : 1 as the side changes or the figure rotates.' : 'The ratio stays 1 : 2 as the side changes or the figure rotates.'}</p></div>
         </aside>
       </div>
-      <footer className="footer"><span>SquareLab · Interactive geometry & area explorer</span><span>Explore. Construct. Understand.</span></footer>
     </main>
   )
 }
@@ -388,9 +385,8 @@ const ConstructionSVG = forwardRef<SVGSVGElement, DrawingProps>(function Constru
       {!diagonal && measured && showMidpoints && model.midpoints.map((p, i) => <g key={i} className="midpoint-dot" style={{ opacity: Math.max(0, Math.min(1, (progress - (16 + i * 4)) / 5)) }}><circle cx={p.x} cy={p.y} r="5.2" /><text x={p.x + (i === 3 ? -21 : 8)} y={p.y + (i === 0 ? -10 : i === 2 ? 18 : 4)}>M{i + 1}</text></g>)}
       {diagonal && construct && highlight && <g className="sector-labels">{model.constructed.map((p, i) => { const q = model.constructed[(i + 1) % 4]!; const mid = { x: (center.x + p.x + q.x) / 3, y: (center.y + p.y + q.y) / 3 }; return <text key={i} x={mid.x} y={mid.y}>½s²</text> })}</g>}
       {!diagonal && highlight && <g className="corner-labels">{model.corners.map((part, i) => { const p = average(part); return <text key={i} x={p.x} y={p.y}>⅛s²</text> })}</g>}
-      {diagonal && measured && showLabels && <Label x={(a.x + c.x) / 2 + 22} y={(a.y + c.y) / 2 - 14} text={`d = ${formatNumber(model.diagonal)}`} kind="violet" />}
       {showLabels && <Label x={(model.outer[0].x + model.outer[1].x) / 2} y={(model.outer[0].y + model.outer[1].y) / 2 - 20} text={`s = ${formatNumber(model.originalArea ** 0.5)}`} kind="blue" />}
-      {construct && showLabels && <Label x={(model.constructed[0].x + model.constructed[1].x) / 2 + 20} y={(model.constructed[0].y + model.constructed[1].y) / 2 - 15} text={`a = ${formatNumber(model.constructedSide)}`} kind="violet" />}
+      {construct && showLabels && <Label x={(model.constructed[0].x + model.constructed[1].x) / 2 + 20} y={(model.constructed[0].y + model.constructed[1].y) / 2 - 15} text={`A₂ = ${formatNumber(model.constructedArea)}`} kind="violet" />}
       {highlight && result && <g className="relationship-stamp"><rect x="335" y="48" width="130" height="34" rx="17" /><text x="400" y="70">{diagonal ? 'AREA RATIO 2 : 1' : 'AREA RATIO 1 : 2'}</text></g>}
       {interactive && <g className="drag-handle" onPointerDown={onPointerDown} aria-label="Drag to resize and rotate"><circle cx={model.draggablePoint.x} cy={model.draggablePoint.y} r="12" className="handle-halo" /><circle cx={model.draggablePoint.x} cy={model.draggablePoint.y} r="5.5" className="handle-core" /><text x={model.draggablePoint.x - 14} y={model.draggablePoint.y + 27}>DRAG</text></g>}
     </g>

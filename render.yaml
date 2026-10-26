@@ -1,7 +1,7 @@
 services:
   - type: web
     runtime: static
-    name: squarelab
+    name: geometry-area-explorer
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
