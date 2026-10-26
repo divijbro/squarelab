@@ -36,6 +36,17 @@ const points = (list: Point[]) => list.map(({ x, y }) => `${x},${y}`).join(' ')
 const average = (list: Point[]): Point => ({ x: list.reduce((sum, p) => sum + p.x, 0) / list.length, y: list.reduce((sum, p) => sum + p.y, 0) / list.length })
 const normalizedAnswer = (value: string) => value.trim().toLowerCase().replaceAll(',', '.').replaceAll(' ', '')
 const CANVAS_SCALE = 27.5
+const SIDE_LIMITS = { min: 1, max: 10 }
+
+type DragSession = {
+  pointerStart: Point
+  handleStart: Point
+  radial: Point
+  tangent: Point
+  gestureThreshold: number
+  gestureMode: 'undecided' | 'resize' | 'rotate'
+}
+type DragUpdate = { side: number; angle: number }
 
 function App() {
   const [activity, setActivity] = useState<Activity>('machine')
@@ -58,8 +69,11 @@ function App() {
   const [checked, setChecked] = useState(false)
   const [hint, setHint] = useState(false)
   const [completed, setCompleted] = useState<number[]>([])
-  const [dragging, setDragging] = useState(false)
+  const [lockedViewBox, setLockedViewBox] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const dragSessionRef = useRef<DragSession | null>(null)
+  const dragFrameRef = useRef<number | null>(null)
+  const pendingDragUpdateRef = useRef<DragUpdate | null>(null)
   const progressRef = useRef(progress)
   const model = useMemo(() => createSquareModel(side, construction, angle, CANVAS_SCALE), [side, construction, angle])
   const activeProof = proof[construction]
@@ -71,10 +85,17 @@ function App() {
   const mainViewBox = construction === 'diagonal'
     ? `${(model.center.x - 400) * (1 - revealFraction)} ${(model.center.y - 310) * (1 - revealFraction)} 800 620`
     : '0 0 800 620'
+  const activeViewBox = lockedViewBox ?? mainViewBox
+
+  const lockViewBox = () => {
+    setLockedViewBox((current) => current ?? activeViewBox)
+    setPlaying(false)
+  }
 
   const changeProgress = (next: number) => {
     const value = Math.max(0, Math.min(100, next))
     progressRef.current = value
+    setLockedViewBox(null)
     setProgress(value)
   }
 
@@ -88,6 +109,10 @@ function App() {
     }, 45)
     return () => window.clearInterval(timer)
   }, [playing])
+
+  useEffect(() => {
+    setLockedViewBox(null)
+  }, [progress])
 
   useEffect(() => {
     const next = Math.round((progress / 100) * (activeProof.length - 1))
@@ -134,7 +159,7 @@ function App() {
     changeTimeline((value / (activeProof.length - 1)) * 100)
   }
 
-  const pointerPoint = (event: ReactPointerEvent<SVGSVGElement>): Point | null => {
+  const pointerPoint = (event: Pick<ReactPointerEvent<SVGSVGElement>, 'clientX' | 'clientY'>): Point | null => {
     const svg = svgRef.current
     const matrix = svg?.getScreenCTM()
     if (!svg || !matrix) return null
@@ -144,22 +169,73 @@ function App() {
     const local = point.matrixTransform(matrix.inverse())
     return { x: local.x, y: local.y }
   }
-  const moveHandle = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!dragging) return
+  const applyPendingDragUpdate = () => {
+    const next = pendingDragUpdateRef.current
+    pendingDragUpdateRef.current = null
+    if (!next) return
+    setSide(next.side)
+    setAngle(next.angle)
+  }
+  const queueHandleUpdate = (event: Pick<ReactPointerEvent<SVGSVGElement>, 'clientX' | 'clientY'>) => {
+    const session = dragSessionRef.current
+    if (!session) return
     const point = pointerPoint(event)
     if (!point) return
-    const next = squareParametersFromHandle(point, model.dragPivot, construction, CANVAS_SCALE)
-    setSide(Math.min(10, Math.max(1, next.side)))
-    setAngle(next.angle)
+    const dx = point.x - session.pointerStart.x
+    const dy = point.y - session.pointerStart.y
+    const radialDelta = dx * session.radial.x + dy * session.radial.y
+    const tangentialDelta = dx * session.tangent.x + dy * session.tangent.y
+    if (session.gestureMode === 'undecided' && Math.hypot(radialDelta, tangentialDelta) >= session.gestureThreshold) {
+      session.gestureMode = Math.abs(tangentialDelta) > Math.abs(radialDelta) * 0.35 ? 'rotate' : 'resize'
+    }
+    const filteredTangentialDelta = session.gestureMode === 'rotate'
+      ? Math.sign(tangentialDelta) * Math.max(0, Math.abs(tangentialDelta) - session.gestureThreshold)
+      : 0
+    const target = {
+      x: session.handleStart.x + session.radial.x * radialDelta + session.tangent.x * filteredTangentialDelta,
+      y: session.handleStart.y + session.radial.y * radialDelta + session.tangent.y * filteredTangentialDelta,
+    }
+    const next = squareParametersFromHandle(target, model.dragPivot, construction, CANVAS_SCALE)
+    pendingDragUpdateRef.current = {
+      side: Math.min(SIDE_LIMITS.max, Math.max(SIDE_LIMITS.min, next.side)),
+      angle: next.angle,
+    }
+    if (dragFrameRef.current === null) {
+      dragFrameRef.current = window.requestAnimationFrame(() => {
+        dragFrameRef.current = null
+        if (!dragSessionRef.current) return
+        applyPendingDragUpdate()
+      })
+    }
+  }
+  const moveHandle = (event: ReactPointerEvent<SVGSVGElement>) => {
+    queueHandleUpdate(event)
   }
   const beginDrag = (event: ReactPointerEvent<SVGCircleElement>) => {
     event.preventDefault()
     event.stopPropagation()
-    setDragging(true)
+    const pointer = pointerPoint(event)
+    if (!pointer) return
+    const radialDelta = { x: model.draggablePoint.x - model.dragPivot.x, y: model.draggablePoint.y - model.dragPivot.y }
+    const radius = Math.hypot(radialDelta.x, radialDelta.y)
+    const radial = { x: radialDelta.x / radius, y: radialDelta.y / radius }
+    dragSessionRef.current = {
+      pointerStart: pointer,
+      handleStart: model.draggablePoint,
+      radial,
+      tangent: { x: -radial.y, y: radial.x },
+      gestureThreshold: Math.max(4, radius * 0.045),
+      gestureMode: 'undecided',
+    }
+    lockViewBox()
     svgRef.current?.setPointerCapture(event.pointerId)
   }
   const endDrag = (event: ReactPointerEvent<SVGSVGElement>) => {
-    setDragging(false)
+    queueHandleUpdate(event)
+    if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current)
+    dragFrameRef.current = null
+    applyPendingDragUpdate()
+    dragSessionRef.current = null
     if (svgRef.current?.hasPointerCapture(event.pointerId)) svgRef.current.releasePointerCapture(event.pointerId)
   }
 
@@ -219,7 +295,7 @@ function App() {
           {activity === 'lab' && <div className="compare-toggle"><div><b>Compare both</b><small>Synchronized dimensions</small></div><Toggle compact label="Compare both constructions" checked={compare} onChange={setCompare} /></div>}
           {activity === 'machine' && <button className="test-rule-button" onClick={() => setRuleTested((current) => !current)}><Grid2X2 size={16} /> {ruleTested ? 'Hide rule test' : 'Test the Rule'}</button>}
           {activity === 'mystery' && <button className="reveal-button" onClick={revealSecret}><Eye size={16} /> Reveal the Secret</button>}
-          <p className="keyboard-hint">On the canvas: drag the handle to resize and rotate. Use ← → to rotate, + / − to resize.</p>
+            <p className="keyboard-hint">On the canvas: drag outward to resize or sideways to rotate. Use ← → to rotate, + / − to resize.</p>
         </aside>
 
         <section className="canvas-column" aria-label="Geometry workspace">
@@ -227,7 +303,7 @@ function App() {
 
           <section className="size-control" aria-label="Adjust square side lengths">
             <div className="size-readout"><label htmlFor="side-control">Original side length</label><strong>s = {formatNumber(side)} <small>units</small></strong></div>
-            <div className="size-slider-wrap"><input id="side-control" className="range" aria-label="Original square side length" type="range" min="1" max="10" step="0.01" value={side} onChange={(event) => setSide(Number(event.target.value))} style={{ '--fill': `${((side - 1) / 9) * 100}%` } as CSSProperties} /><div className="range-ends"><span>1 unit</span><span>10 units</span></div></div>
+            <div className="size-slider-wrap"><input id="side-control" className="range" aria-label="Original square side length" type="range" min="1" max="10" step="0.01" value={side} onPointerDown={lockViewBox} onKeyDown={lockViewBox} onChange={(event) => setSide(Number(event.target.value))} style={{ '--fill': `${((side - 1) / 9) * 100}%` } as CSSProperties} /><div className="range-ends"><span>1 unit</span><span>10 units</span></div></div>
             <div className="derived-length"><span>{construction === 'diagonal' ? 'Diagonal-square side' : 'Midpoint-square side'}</span><strong>{formatNumber(model.constructedSide)} <small>units</small></strong><i>{construction === 'diagonal' ? 's√2' : 's / √2'}</i></div>
           </section>
 
@@ -255,15 +331,15 @@ function App() {
                 showAxes={showAxes}
                 showGrid={showGrid}
                 interactive={activity !== 'lab' || !compare}
-                viewBox={mainViewBox}
+                viewBox={activeViewBox}
                 onPointerDown={beginDrag}
                 onPointerMove={moveHandle}
                 onPointerUp={endDrag}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowLeft') { event.preventDefault(); rotateDiagram(-5) }
                   if (event.key === 'ArrowRight') { event.preventDefault(); rotateDiagram(5) }
-                  if (event.key === '+' || event.key === '=') setSide((current) => Math.min(10, current + 0.25))
-                  if (event.key === '-' || event.key === '_') setSide((current) => Math.max(1, current - 0.25))
+                  if (event.key === '+' || event.key === '=') { event.preventDefault(); lockViewBox(); setSide((current) => Math.min(10, current + 0.25)) }
+                  if (event.key === '-' || event.key === '_') { event.preventDefault(); lockViewBox(); setSide((current) => Math.max(1, current - 0.25)) }
                   if (event.key === ' ') { event.preventDefault(); setPlaying((current) => !current) }
                 }}
               />
